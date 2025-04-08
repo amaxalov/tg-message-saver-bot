@@ -1,0 +1,13 @@
+services:
+  bot:
+    build: .
+    environment:
+      - NODE_ENV=production
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+    restart: unless-stopped
+    networks:
+      - bot_network
+
+networks:
+  bot_network:
+    driver: bridge 

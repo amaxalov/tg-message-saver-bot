@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  telegram-bot:
+    container_name: telegram-bot-dev
+    build:
+      context: .
+      target: builder
+    command: pnpm dev
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - CHOKIDAR_USEPOLLING=true
+    networks:
+      - bot_network
+    ports:
+      - "3000:3000"  # Если нужно будет добавить веб-интерфейс
+
+networks:
+  bot_network:
+    name: telegram-bot-network
+    driver: bridge
+
+# Команда для очистки томов при остановке
+x-cleanup: &cleanup
+  - docker-compose -f docker-compose.dev.yml down -v --renew-anon-volumes 
