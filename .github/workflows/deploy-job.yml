@@ -1,0 +1,36 @@
+name: Deploy buy runner
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build Docker image
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+
+prepare-environment:
+  runs-on: self-hosted # Запускаем на раннере, который настроили до этого.
+  steps:
+    - name: Stop and remove containers, networks
+      run: docker-compose down -v
+    - name: Remove unused data
+      run: docker system prune -a -f
+
+deploy:
+  runs-on: self-hosted # Запускаем на раннере, который настроили до этого.
+  needs: prepare-environment # Запускаем только если джоба prepare-environment прошла успешно
+  steps:
+    - name: checkout repo
+      uses: actions/checkout@v3
+    - name: docker-compose
+      run: docker-compose up -d
