@@ -97,8 +97,6 @@ bot.on('deleted_business_messages', async (ctx) => {
   
   const data = await readData();
 
-  console.log('Bot instance created');
-
   if (data.userId && deleted.id !== ctx.botInfo.id) {
     await ctx.telegram.sendMessage(
       data.userId,
