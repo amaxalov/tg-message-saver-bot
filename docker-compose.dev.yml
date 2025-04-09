@@ -1,6 +1,6 @@
 services:
   telegram-bot:
-    container_name: telegram-bot-dev
+    container_name: tg-saver-bot-dev
     build:
       context: .
       target: builder
@@ -17,6 +17,7 @@ services:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
+      - DATABASE_URL=${DATABASE_URL}
     networks:
       - bot_network
     ports:
@@ -26,7 +27,7 @@ services:
         condition: service_healthy
 
   postgres:
-    container_name: postgres-dev
+    container_name: tg-saver-postgres-dev
     image: postgres:16-alpine
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
@@ -45,7 +46,7 @@ services:
       retries: 5
 
   pgadmin:
-    container_name: pgadmin-dev
+    container_name: tg-saver-pgadmin-dev
     image: dpage/pgadmin4
     environment:
       - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL}
@@ -61,7 +62,7 @@ services:
 
 networks:
   bot_network:
-    name: telegram-bot-network
+    name: tg-saver-network-dev
     driver: bridge
 
 volumes:

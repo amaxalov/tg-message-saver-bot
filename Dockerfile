@@ -4,7 +4,7 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 # Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.8.0 --activate
 
 # Copy package files
 COPY package*.json pnpm-lock.yaml ./
@@ -34,20 +34,6 @@ COPY --from=builder /app/dist ./dist
 
 # Set environment variables
 ENV NODE_ENV=production
-
-# Add Telegram token
-ARG TELEGRAM_TOKEN
-ENV TELEGRAM_TOKEN=$TELEGRAM_TOKEN
-
-# Add PostgreSQL variables
-ARG POSTGRES_DB
-ENV POSTGRES_DB=$POSTGRES_DB
-
-ARG POSTGRES_USER
-ENV POSTGRES_USER=$POSTGRES_USER
-
-ARG POSTGRES_PASSWORD
-ENV POSTGRES_PASSWORD=$POSTGRES_PASSWORD
 
 # Expose port if needed
 # EXPOSE 3000
