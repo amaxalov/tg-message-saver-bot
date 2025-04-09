@@ -35,10 +35,6 @@ COPY --from=builder /app/dist ./dist
 # Set environment variables
 ENV NODE_ENV=production
 
-# Add Telegram token
-ARG TELEGRAM_TOKEN
-ENV TELEGRAM_TOKEN=$TELEGRAM_TOKEN
-
 # Expose port if needed
 # EXPOSE 3000
 

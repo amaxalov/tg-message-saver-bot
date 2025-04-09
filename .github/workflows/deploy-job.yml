@@ -5,6 +5,9 @@ on:
     branches:
       - main
 
+env:
+  COMPOSE_BAKE: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -19,6 +22,9 @@ jobs:
           context: .
           build-args: |
             TELEGRAM_TOKEN=${{ secrets.TELEGRAM_TOKEN }}
+            POSTGRES_DB=${{ env.POSTGRES_DB }}
+            POSTGRES_USER=${{ env.POSTGRES_USER }}
+            POSTGRES_PASSWORD=${{ env.POSTGRES_PASSWORD }}
 
   prepare-environment:
     needs: build
