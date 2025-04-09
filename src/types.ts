@@ -1,3 +1,3 @@
 export interface BotData {
-  userId: number | null;
+  userId: number | null
 }

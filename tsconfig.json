@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "es2016",
-    "baseUrl": "./",
+    "rootDir": "src",
     "module": "CommonJS",
     "composite": true,
     "lib": ["dom", "dom.iterable", "es2016"],
@@ -19,6 +19,6 @@
     "esModuleInterop": true,
     "outDir": "./dist"
   },
-  "include": ["./**/*.ts", "./**/*.tsx"],
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 } 
