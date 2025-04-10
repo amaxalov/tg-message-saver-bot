@@ -1,6 +1,7 @@
 import { Telegraf, Context } from 'telegraf'
 import dotenv from 'dotenv'
 import type { Chat } from '@telegraf/types'
+import 'reflect-metadata'
 import type { BotData } from './types'
 
 dotenv.config()
