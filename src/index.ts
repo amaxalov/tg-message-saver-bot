@@ -1,10 +1,12 @@
 import { Telegraf, Context } from 'telegraf'
 import dotenv from 'dotenv'
-import type { Chat } from '@telegraf/types'
+import type { Update } from '@telegraf/types'
 import 'reflect-metadata'
-import type { BotData } from './types'
 import { AppDataSource } from './data-source'
 import { User } from './entity/User'
+import { userLoginHandler } from './handlers/user-login-handler'
+import { Sender } from './entity/Sender'
+import { Message } from './entity/Message'
 
 dotenv.config()
 
@@ -15,15 +17,9 @@ if (!token) {
 const bot = new Telegraf(token)
 const imageUrl = 'https://i.ibb.co/gLWbCjXY/photo-2025-04-03-07-03-17.jpg'
 
-const readData = async (): Promise<BotData> => {
-  return { userId: null }
-}
+let user: User | null = null
 
-const saveData = async (): Promise<void> => {
-  console.error('Error saving data:')
-}
-
-const sendFirstMessage = async (ctx: Context): Promise<void> => {
+const sendFirstMessage = async (ctx: Context<any>): Promise<void> => {
   await ctx.replyWithPhoto(imageUrl, {
     caption: `🕵️‍♂️ Наш бот создан для отслеживания действий собеседников в переписке.\n\n<blockquote>Если ваш собеседник изменит или удалит сообщение — вы моментально об этом узнаете 📱\n\nТакже бот умеет скачивать одноразовые (отправленные с таймером) фото, видео, голосовые и кружки ⌛️</blockquote>\n\n❓ Как подключить бота — смотри на картинке 👆\n\nИмя бота: <code>@${ctx.botInfo?.username}</code> (скопируйте для подключения)\n\nДемонстрация работы бота:`,
     parse_mode: 'HTML',
@@ -36,77 +32,104 @@ const sendFirstMessage = async (ctx: Context): Promise<void> => {
   })
 }
 
-bot.command('start', async (ctx: Context): Promise<void> => {
+bot.command('start', async (ctx: Context<Update.MessageUpdate>): Promise<void> => {
   await sendFirstMessage(ctx)
-
-  const data = await readData()
-  if (ctx.chat) {
-    data.userId = ctx.chat.id
-    await saveData()
-  }
 
   await ctx.reply(
     '<b>✅ За регистрацию вам предоставлен пробный период на 7 дней</b>\n\nСкорее подключайте бота и используйте все его возможности!',
     { parse_mode: 'HTML' }
   )
 
-  const userRepository = AppDataSource.getRepository(User)
-
   console.log('ctx', ctx)
 
-  const user = new User()
-  user.firstName = 'Timber'
-  user.lastName = 'Saw'
-  user.telegramId = '1234567890'
-  user.registrationDate = new Date()
-  user.trialPeriodEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-
-  await userRepository.save(user)
-
-  const allUsers = await userRepository.find()
-
-  console.log('allUsers', allUsers)
-
-  // if (timber) {
-  //   await userRepository.remove(timber)
-  // }
+  user = await userLoginHandler(ctx.update.message.from)
 })
 
 bot.on('message', async (ctx) => {
   await sendFirstMessage(ctx)
 })
 
-bot.on('business_message', async (): Promise<void> => {
-  // db sender
+bot.on('business_message', async (ctx: Context<Update.BusinessMessageUpdate>): Promise<void> => {
+  if (!user) {
+    const fetchedUser = await userLoginHandler(ctx.update.business_message.from)
+    if (!fetchedUser) {
+      console.error('User not found')
+      return
+    }
+    user = fetchedUser
+  }
+  const message = ctx.update.business_message
+  const sender = message.from
+  console.log('sender', sender)
+  console.log('message', message)
+  const senderRepository = AppDataSource.getRepository(Sender)
+  const senderEntity = await senderRepository.findOne({
+    where: {
+      telegramId: String(sender.id),
+    },
+  })
+
+  const newMessage = new Message()
+  newMessage.messageId = message.message_id
+  // @ts-ignore
+  newMessage.text = message.text
+  newMessage.createdAt = new Date()
+  newMessage.user = user
+
+  if (!senderEntity) {
+    const newSender = new Sender()
+    newSender.telegramId = String(sender.id)
+    newSender.first_name = sender.first_name
+    newSender.last_name = sender.last_name || ''
+    newSender.username = sender.username || ''
+    newSender.user = user
+
+    newMessage.sender = newSender
+    newSender.messages = [newMessage]
+
+    console.log('newSender', newSender)
+
+    // await senderRepository.save(newSender)
+  } else {
+    console.log('senderEntity', senderEntity)
+    senderEntity.messages.push(newMessage)
+    // await senderRepository.save(senderEntity)
+  }
 })
 
-bot.on('edited_business_message', async (ctx) => {
+bot.on('edited_business_message', async (ctx: Context<Update.EditedBusinessMessageUpdate>): Promise<void> => {
   const message = ctx.update.edited_business_message
+  console.log('message', message)
+  const messageRepository = AppDataSource.getRepository(Message)
 
-  const data = await readData()
-  if (data.userId && message.from.id !== ctx.botInfo.id) {
-    await ctx.telegram.sendMessage(
-      data.userId,
-      `📝 Сообщение изменено:\n` +
-        `От: ${message.from.first_name} ${message.from.last_name || ''} (@${message.from.username || 'нет username'})`,
-      { parse_mode: 'HTML' }
-    )
+  const editedMessage = await messageRepository.findOne({
+    where: {
+      messageId: message.message_id,
+    },
+    relations: ['sender'],
+  })
+
+  if (!editedMessage) {
+    console.error('Message not found')
+    return
   }
+  // @ts-ignore
+  editedMessage.text = message.text
+
+  await messageRepository.save(editedMessage)
 })
 
 bot.on('deleted_business_messages', async (ctx) => {
-  const deleted = ctx.update.deleted_business_messages.chat as Chat.PrivateChat
-
-  const data = await readData()
-
-  if (data.userId && deleted.id !== ctx.botInfo.id) {
-    await ctx.telegram.sendMessage(
-      data.userId,
-      `📝 Сообщение удалено:\n` +
-        `От: ${deleted.first_name} ${deleted.last_name || ''} (@${deleted.username || 'нет username'})`,
-      { parse_mode: 'HTML' }
-    )
-  }
+  // const deleted = ctx.update.deleted_business_messages.chat as Chat.PrivateChat
+  // const data = await readData()
+  // if (data.userId && deleted.id !== ctx.botInfo.id) {
+  //   await ctx.telegram.sendMessage(
+  //     data.userId,
+  //     `📝 Сообщение удалено:\n` +
+  //       `От: ${deleted.first_name} ${deleted.last_name || ''} (@${deleted.username || 'нет username'})`,
+  //     { parse_mode: 'HTML' }
+  //   )
+  // }
 })
 
 bot.action('connect_bot', async (ctx: Context): Promise<void> => {

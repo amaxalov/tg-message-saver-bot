@@ -66,6 +66,7 @@ export default [
       'import/order': 'error',
       'import/no-unresolved': 'error',
       '@typescript-eslint/ban-ts-comment': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
     },
   },
 ]

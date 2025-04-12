@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm'
 import { User } from './User'
+import { Sender } from './Sender'
 
 @Entity()
 export class Message {
@@ -7,14 +8,15 @@ export class Message {
   id!: number
 
   @Column()
-  messageId!: string
+  messageId!: number
+
   @Column()
   text!: string
 
   @Column()
   createdAt!: Date
 
-  @Column()
+  @Column({ nullable: true })
   assets!: string
 
   @ManyToOne(() => User, (user) => user.messages, {
@@ -22,4 +24,7 @@ export class Message {
     cascade: true,
   })
   user!: User
+
+  @ManyToOne(() => Sender, (sender) => sender.messages)
+  sender!: Sender
 }
