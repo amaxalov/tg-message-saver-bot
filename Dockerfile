@@ -35,8 +35,5 @@ COPY --from=builder /app/dist ./dist
 # Set environment variables
 ENV NODE_ENV=production
 
-# Expose port if needed
-# EXPOSE 3000
-
 # Start the application
 CMD ["pnpm", "start"] 

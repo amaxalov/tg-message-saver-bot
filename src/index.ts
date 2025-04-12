@@ -3,6 +3,8 @@ import dotenv from 'dotenv'
 import type { Chat } from '@telegraf/types'
 import 'reflect-metadata'
 import type { BotData } from './types'
+import { AppDataSource } from './data-source'
+import { User } from './entity/User'
 
 dotenv.config()
 
@@ -47,6 +49,27 @@ bot.command('start', async (ctx: Context): Promise<void> => {
     '<b>✅ За регистрацию вам предоставлен пробный период на 7 дней</b>\n\nСкорее подключайте бота и используйте все его возможности!',
     { parse_mode: 'HTML' }
   )
+
+  const userRepository = AppDataSource.getRepository(User)
+
+  console.log('ctx', ctx)
+
+  const user = new User()
+  user.firstName = 'Timber'
+  user.lastName = 'Saw'
+  user.telegramId = '1234567890'
+  user.registrationDate = new Date()
+  user.trialPeriodEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+
+  await userRepository.save(user)
+
+  const allUsers = await userRepository.find()
+
+  console.log('allUsers', allUsers)
+
+  // if (timber) {
+  //   await userRepository.remove(timber)
+  // }
 })
 
 bot.on('message', async (ctx) => {
@@ -99,17 +122,13 @@ bot.action('instruction', async (ctx: Context): Promise<void> => {
 bot.catch((err: Error): void => {
   console.error('Bot error:', err)
 })
-
-const initDataFile = async (): Promise<void> => {
-  // Инициализация файла данных
-}
-
 ;(async (): Promise<void> => {
   try {
-    await initDataFile()
+    await AppDataSource.initialize()
+    console.log('Data Source has been initialized!')
     await bot.launch()
   } catch (error) {
-    console.error('Error during bot initialization:', error)
+    console.error('Error during initialization:', error)
     process.exit(1)
   }
 })()

@@ -10,9 +10,12 @@
     "build": "tsc",
     "dev": "ts-node-dev src/index.ts",
     "prod": "pnpm run build && pnpm run start",
-    "migrate": "node-pg-migrate",
     "lint": "eslint src/**/*.ts",
-    "lint:fix": "eslint src/**/*.ts --fix"
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "typeorm": "typeorm-ts-node-commonjs",
+    "migration:generate": "pnpm typeorm migration:generate -d ./src/data-source.ts",
+    "migration:run": "pnpm typeorm migration:run -d ./src/data-source.ts",
+    "migration:revert": "pnpm typeorm migration:revert -d ./src/data-source.ts"
   },
   "author": "",
   "license": "ISC",
@@ -37,7 +40,6 @@
     "eslint-import-resolver-typescript": "4.3.2",
     "eslint-plugin-import": "2.31.0",
     "eslint-plugin-prettier": "5.2.6",
-    "node-pg-migrate": "7.9.1",
     "prettier": "3.5.3",
     "ts-node": "10.9.2",
     "ts-node-dev": "2.0.0",
