@@ -8,7 +8,7 @@ export class Message {
   id!: number
 
   @Column()
-  messageId!: number
+  messageId!: string
 
   @Column()
   text!: string

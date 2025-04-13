@@ -47,4 +47,7 @@ export class User {
   @OneToMany(() => Sender, (sender) => sender.user)
   @JoinColumn()
   senders!: Sender[]
+
+  @Column({ type: 'jsonb', default: [] })
+  business_connection_ids!: string[]
 }

@@ -2,22 +2,23 @@ import { Telegraf, Context } from 'telegraf'
 import dotenv from 'dotenv'
 import type { Update } from '@telegraf/types'
 import 'reflect-metadata'
+import { In } from 'typeorm'
 import { AppDataSource } from './data-source'
-import { User } from './entity/User'
 import { userLoginHandler } from './handlers/user-login-handler'
 import { Sender } from './entity/Sender'
 import { Message } from './entity/Message'
+import { User } from './entity/User'
 
 dotenv.config()
 
 const token = process.env.TELEGRAM_TOKEN
+
 if (!token) {
   process.exit(1)
 }
-const bot = new Telegraf(token)
-const imageUrl = 'https://i.ibb.co/gLWbCjXY/photo-2025-04-03-07-03-17.jpg'
 
-let user: User | null = null
+const bot = new Telegraf<Context>(token)
+const imageUrl = 'https://i.ibb.co/gLWbCjXY/photo-2025-04-03-07-03-17.jpg'
 
 const sendFirstMessage = async (ctx: Context<any>): Promise<void> => {
   await ctx.replyWithPhoto(imageUrl, {
@@ -40,96 +41,143 @@ bot.command('start', async (ctx: Context<Update.MessageUpdate>): Promise<void> =
     { parse_mode: 'HTML' }
   )
 
-  console.log('ctx', ctx)
-
-  user = await userLoginHandler(ctx.update.message.from)
+  await userLoginHandler(ctx.update.message.from)
 })
 
-bot.on('message', async (ctx) => {
+bot.on('message', async (ctx: Context<Update.MessageUpdate>) => {
   await sendFirstMessage(ctx)
 })
 
 bot.on('business_message', async (ctx: Context<Update.BusinessMessageUpdate>): Promise<void> => {
-  if (!user) {
-    const fetchedUser = await userLoginHandler(ctx.update.business_message.from)
-    if (!fetchedUser) {
-      console.error('User not found')
-      return
-    }
-    user = fetchedUser
-  }
   const message = ctx.update.business_message
-  const sender = message.from
-  console.log('sender', sender)
-  console.log('message', message)
-  const senderRepository = AppDataSource.getRepository(Sender)
-  const senderEntity = await senderRepository.findOne({
+  const currentUser = ctx.update.business_message.from.id
+  const userRepository = AppDataSource.getRepository(User)
+  const userEntity = await userRepository.findOne({
     where: {
-      telegramId: String(sender.id),
+      telegramId: String(currentUser),
     },
   })
 
-  const newMessage = new Message()
-  newMessage.messageId = message.message_id
-  // @ts-ignore
-  newMessage.text = message.text
-  newMessage.createdAt = new Date()
-  newMessage.user = user
+  if (!userEntity) {
+    const ownerEntity = await userRepository.findOne({
+      where: {
+        business_connection_ids: In([String(message.business_connection_id)]),
+      },
+    })
 
-  if (!senderEntity) {
-    const newSender = new Sender()
-    newSender.telegramId = String(sender.id)
-    newSender.first_name = sender.first_name
-    newSender.last_name = sender.last_name || ''
-    newSender.username = sender.username || ''
-    newSender.user = user
+    if (!ownerEntity) {
+      console.log('ownerEntity not found')
+      return
+    }
 
-    newMessage.sender = newSender
-    newSender.messages = [newMessage]
+    const text = (message as typeof ctx.update.business_message & { text: string }).text
+    const sender = message.from
+    const senderRepository = AppDataSource.getRepository(Sender)
+    const senderEntity = await senderRepository.findOne({
+      where: {
+        telegramId: String(sender.id),
+      },
+    })
 
-    console.log('newSender', newSender)
+    const newMessage = new Message()
+    newMessage.messageId = String(message.message_id)
+    newMessage.text = text
+    newMessage.createdAt = new Date()
+    newMessage.user = ownerEntity
 
-    // await senderRepository.save(newSender)
+    if (!senderEntity) {
+      const newSender = new Sender()
+      newSender.telegramId = String(sender.id)
+      newSender.first_name = sender.first_name
+      newSender.last_name = sender.last_name || ''
+      newSender.username = sender.username || ''
+      newSender.user = ownerEntity
+
+      newMessage.sender = newSender
+      newSender.messages = [newMessage]
+
+      await senderRepository.save(newSender)
+    } else {
+      newMessage.sender = senderEntity
+      await senderRepository.manager.save(newMessage)
+    }
   } else {
-    console.log('senderEntity', senderEntity)
-    senderEntity.messages.push(newMessage)
-    // await senderRepository.save(senderEntity)
+    if (!userEntity.business_connection_ids.includes(message.business_connection_id)) {
+      userEntity.business_connection_ids = [...userEntity.business_connection_ids, message.business_connection_id]
+      await userRepository.save(userEntity)
+    }
   }
 })
 
 bot.on('edited_business_message', async (ctx: Context<Update.EditedBusinessMessageUpdate>): Promise<void> => {
   const message = ctx.update.edited_business_message
-  console.log('message', message)
+  const text = (message as typeof ctx.update.edited_business_message & { text: string }).text
   const messageRepository = AppDataSource.getRepository(Message)
 
   const editedMessage = await messageRepository.findOne({
     where: {
-      messageId: message.message_id,
+      messageId: String(message.message_id),
     },
     relations: ['sender'],
   })
 
   if (!editedMessage) {
-    console.error('Message not found')
     return
   }
-  // @ts-ignore
-  editedMessage.text = message.text
+
+  await ctx.telegram.sendMessage(
+    editedMessage.sender.user.telegramId,
+    `📝 Сообщение изменено:\n` +
+      `От: ${editedMessage.sender.first_name} ${editedMessage.sender.last_name || ''} 
+      (@${editedMessage.sender.username || ''})\n
+      Прежнее сообщение: ${editedMessage.text}\n
+      Новое сообщение: ${text}`,
+    { parse_mode: 'HTML' }
+  )
+
+  editedMessage.text = text
 
   await messageRepository.save(editedMessage)
 })
 
-bot.on('deleted_business_messages', async (ctx) => {
-  // const deleted = ctx.update.deleted_business_messages.chat as Chat.PrivateChat
-  // const data = await readData()
-  // if (data.userId && deleted.id !== ctx.botInfo.id) {
-  //   await ctx.telegram.sendMessage(
-  //     data.userId,
-  //     `📝 Сообщение удалено:\n` +
-  //       `От: ${deleted.first_name} ${deleted.last_name || ''} (@${deleted.username || 'нет username'})`,
-  //     { parse_mode: 'HTML' }
-  //   )
-  // }
+bot.on('deleted_business_messages', async (ctx: Context<Update.DeletedBusinessMessagesUpdate>): Promise<void> => {
+  const message = ctx.update.deleted_business_messages
+  const messageIds = message.message_ids
+  const messageRepository = AppDataSource.getRepository(Message)
+
+  const editedMessages = await messageRepository.find({
+    where: {
+      messageId: In(messageIds.map(String)),
+    },
+  })
+
+  console.log('Found messages:', editedMessages)
+
+  if (!editedMessages.length) {
+    return
+  }
+
+  // Затем явно загрузим отношения для первого сообщения
+  const firstMessage = await messageRepository
+    .createQueryBuilder('message')
+    .leftJoinAndSelect('message.sender', 'sender')
+    .leftJoinAndSelect('sender.user', 'user')
+    .where('message.id = :id', { id: editedMessages[0].id })
+    .getOne()
+
+  if (!firstMessage || !firstMessage.sender || !firstMessage.sender.user) {
+    console.error('Failed to load message with relations')
+    return
+  }
+
+  await ctx.telegram.sendMessage(
+    firstMessage.sender.user.telegramId,
+    `📝 Сообщение удалено:\n` +
+      `От: ${firstMessage.sender.first_name} ${firstMessage.sender.last_name || ''} 
+      (@${firstMessage.sender.username || ''})
+      ${editedMessages.map((message) => `\n${message.text}`).join('')}`,
+    { parse_mode: 'HTML' }
+  )
 })
 
 bot.action('connect_bot', async (ctx: Context): Promise<void> => {
@@ -140,6 +188,10 @@ bot.action('connect_bot', async (ctx: Context): Promise<void> => {
 bot.action('instruction', async (ctx: Context): Promise<void> => {
   await ctx.reply('Инструкция...')
   await ctx.answerCbQuery()
+})
+
+bot.on('business_connection', async (ctx) => {
+  console.log('new_chat_members', ctx)
 })
 
 bot.catch((err: Error): void => {
